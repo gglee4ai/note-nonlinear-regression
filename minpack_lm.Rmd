@@ -1,0 +1,303 @@
+---
+title: "minpack.lm 실습"
+output: html_notebook
+---
+
+
+```{r}
+library(minpack.lm)
+```
+
+# nls.lm
+
+## Examples
+
+### example 1
+
+```{r}
+x <- seq(0, 5, length = 100)
+
+getPred <- function(parS, xx) parS$a * exp(xx * parS$b) + parS$c
+
+pp <- list(a = 9, b = -1, c = 6)
+
+simDNoisy <- getPred(pp, x) + rnorm(length(x), sd = .1)
+
+plot(x, simDNoisy, main = "data")
+```
+
+```{r}
+residFun <- function(p, observed, xx) observed - getPred(p, xx)
+
+parStart <- list(a = 3, b = -.001, c = 1)
+
+nls.out <- nls.lm(par=parStart, fn = residFun, observed = simDNoisy,
+                  xx = x, control = nls.lm.control(nprint = 1))
+```
+
+
+```{r}
+plot(x, simDNoisy, main = "data")
+lines(x, getPred(as.list(coef(nls.out)), x), col = 2, lwd = 2)
+```
+
+```{r}
+summary(nls.out)
+```
+
+
+### example 2
+
+```{r}
+f <- function(TT, tau, N0, a, f0) {
+  expr <- expression(N0*exp(-TT/tau)*(1 + a*cos(f0*TT)))
+  eval(expr)
+}
+
+j <- function(TT, tau, N0, a, f0) {
+  expr <- expression(N0*exp(-TT/tau)*(1 + a*cos(f0*TT)))
+  c(eval(D(expr, "tau")), eval(D(expr, "N0")),
+    eval(D(expr, "a")), eval(D(expr, "f0")))
+}
+
+TT <- seq(0, 8, length = 501)
+p <- c(tau = 2.2, N0 = 1000, a = 0.25, f0 = 8)
+
+Ndet <- do.call("f", c(list(TT = TT), as.list(p)))
+
+N <- Ndet + rnorm(length(Ndet), mean = Ndet, sd = .01*max(Ndet))
+
+#par(mfrow = c(2, 1), mar = c(3, 5, 2, 1))
+plot(TT, N, bg = "black", main = "data") #,cex = 0.5
+```
+
+```{r}
+fcn <- function(p, TT, N, fcall, jcall)
+  (N - do.call("fcall", c(list(TT = TT), as.list(p))))
+
+fcn.jac <- function(p, TT, N, fcall, jcall)
+  -do.call("jcall", c(list(TT = TT), as.list(p)))
+
+guess <- c(tau = 2.2, N0 = 1500, a = 0.25, f0 = 10)
+
+out <- nls.lm(par = guess, fn = fcn, jac = fcn.jac,
+              fcall = f, jcall = j,
+              TT = TT, N = N, control = nls.lm.control(nprint = 1))
+```
+
+
+```{r}
+N1 <- do.call("f", c(list(TT = TT), out$par))
+
+plot(TT, N, bg = "black", main = "data") #,cex = 0.5
+lines(TT, N1, col="blue", lwd=2)
+```
+
+```{r}
+plot(1:(out$niter+1), log(out$rsstrace), type="b",
+main="log residual sum of squares vs. iteration number",
+xlab="iteration", ylab="log residual sum of squares", pch=21,bg=2)
+```
+
+
+```{r}
+summary(out)
+```
+
+
+# nlsLM
+
+## Examples from 'nls' doc
+
+```{r}
+DNase
+DNase1 <- subset(DNase, Run == 1)
+fm1DNase1 <- nlsLM(density ~ SSlogis(log(conc), Asym, xmid, scal), DNase1)
+fm1DNase1 <- nlsLM(density ~ Asym/(1 + exp((xmid - log(conc))/scal)), 
+                   data = DNase1,
+                   start = list(Asym = 3, xmid = 0, scal = 1))
+```
+
+```{r}
+coef(fm1DNase1)
+```
+
+
+```{r}
+confint(fm1DNase1)
+```
+
+
+```{r}
+deviance(fm1DNase1)
+```
+
+```{r}
+df.residual(fm1DNase1)
+```
+
+
+```{r}
+fitted(fm1DNase1)
+```
+
+```{r}
+formula(fm1DNase1)
+```
+
+```{r}
+logLik(fm1DNase1)
+```
+
+```{r}
+predict(fm1DNase1)
+```
+
+```{r}
+print(fm1DNase1)
+```
+
+```{r}
+profile(fm1DNase1)
+```
+
+```{r}
+residuals(fm1DNase1)
+```
+
+
+```{r}
+summary(fm1DNase1)
+```
+
+
+```{r}
+update(fm1DNase1)
+```
+
+
+```{r}
+vcov(fm1DNase1)
+```
+
+
+```{r}
+weights(fm1DNase1)
+```
+
+
+## weighted nonlinear regression
+
+```{r}
+## weighted nonlinear regression using
+## inverse squared variance of the response
+## gives same results as original 'nls' function
+Treated <- Puromycin[Puromycin$state == "treated", ]
+var.Treated <- tapply(Treated$rate, Treated$conc, var)
+var.Treated <- rep(var.Treated, each = 2)
+Pur.wt1 <- nls(rate ~ (Vm * conc)/(K + conc), data = Treated,
+               start = list(Vm = 200, K = 0.1), weights = 1/var.Treated^2)
+Pur.wt2 <- nlsLM(rate ~ (Vm * conc)/(K + conc), data = Treated,
+                 start = list(Vm = 200, K = 0.1), weights = 1/var.Treated^2)
+all.equal(coef(Pur.wt1), coef(Pur.wt2))
+```
+
+
+```{r}
+plot(Treated$conc, Treated$rate)
+```
+
+## 'nlsLM' can fit zero-noise data
+
+```{r}
+x <- 1:10
+y <- 2*x + 3
+# Not run:
+#nls(y ~ a + b * x, start = list(a = 0.12345, b = 0.5421))
+# End(Not run)
+```
+
+
+```{r}
+nlsLM(y ~ a + b * x, start = list(a = 0.12345, b = 0.54321))
+```
+
+
+##  Examples from 'nls.lm' doc
+
+```{r}
+x <- seq(0,5, length = 100)
+getPred <- function(parS, xx) parS$a * exp(xx * parS$b) + parS$c
+pp <- list(a = 9,b = -1, c = 6)
+simDNoisy <- getPred(pp, x) + rnorm(length(x), sd = .1)
+
+mod <- nlsLM(simDNoisy ~ a * exp(b * x) + c,
+             start = c(a = 3, b = -0.001, c = 1),
+             trace = TRUE)
+```
+
+```{r}
+## plot data
+plot(x, simDNoisy, main = "data")
+## plot fitted values
+lines(x, fitted(mod), col = 2, lwd = 2)
+```
+
+
+```{r}
+TT <- seq(0, 8, length = 501)
+tau <- 2.2
+N0 <- 1000
+a <- 0.25
+f0 <- 8
+Ndet <- N0 * exp(-TT/tau) * (1 + a * cos(f0 * TT))
+N <- Ndet + rnorm(length(Ndet), mean = Ndet, sd = .01 * max(Ndet))
+mod <- nlsLM(N ~ N0 * exp(-TT/tau) * (1 + a * cos(f0 * TT)),
+             start = c(tau = 2.2, N0 = 1500, a = 0.25, f0 = 10),
+             trace = TRUE)
+
+plot(TT, N, main = "data")
+lines(TT, fitted(mod), col = 2, lwd = 2)
+```
+
+
+# wfct
+
+```{r}
+### Examples from 'nls' doc ###
+## note that 'nlsLM' below may be replaced with calls to 'nls'
+Treated <- Puromycin[Puromycin$state == "treated", ]
+## Weighting by inverse of response 1/y_i:
+nlsLM(rate ~ Vm * conc/(K + conc), data = Treated,
+      start = c(Vm = 200, K = 0.05), weights = wfct(1/rate))
+```
+
+
+```{r}
+## Weighting by square root of predictor \sqrt{x_i}:
+nlsLM(rate ~ Vm * conc/(K + conc), data = Treated,
+      start = c(Vm = 200, K = 0.05), weights = wfct(sqrt(conc)))
+```
+
+
+```{r}
+## Weighting by inverse square of fitted values 1/\hat{y_i}^2:
+nlsLM(rate ~ Vm * conc/(K + conc), data = Treated,
+      start = c(Vm = 200, K = 0.05), weights = wfct(1/fitted^2))
+```
+
+
+```{r}
+## Weighting by inverse variance 1/\sigma{y_i}^2:
+nlsLM(rate ~ Vm * conc/(K + conc), data = Treated,
+      start = c(Vm = 200, K = 0.05), weights = wfct(1/error^2))
+```
+
+
+
+
+
+
+
+
+
