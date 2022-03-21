@@ -1,0 +1,194 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+# setup
+
+```{r}
+# devtools::install_github("cran/drc")
+# devtools::install_github("cran/alr3")
+# devtools::install_github("cran/NRAIA")
+# devtools::install_github("cran/nlrwr")
+library(nlrwr)
+```
+
+
+# Ch 1
+
+1.1 A stock-recruitment model
+
+```{r}
+plot(num.fish ~ spawn.biomass, 
+     data = M.merluccius, 
+     xlab = "Spawning biomass (1000 tonnes)",
+     ylab = "Recruitment (million fish)")
+```
+
+
+1.2 Competition between plant biotypes
+
+```{r}
+plot(biomass ~ x, 
+     data = RScompetition, 
+     log = "", 
+     xlab = Density ~ (plants/m^2), 
+     ylab = Biomass ~ of ~ sensitive ~ biotype ~ (g/plant), 
+     pch = as.numeric(as.factor(RScompetition$z)))
+```
+
+
+1.3 Grouped dose-response data
+
+```{r}
+xyplot(DryMatter ~ Dose | Herbicide,
+       data = S.alba, 
+       scales = list(x = list(log = TRUE)),
+       ylab = "Dry matter (g/pot)",
+       xlab = "Dose (g/ha)")
+```
+
+
+# Ch 2
+
+## 2.2 Getting started with nls()
+
+2.2.1 Introducing the data example
+
+```{r}
+L.minor
+```
+
+```{r}
+plot(rate ~ conc, data = L.minor,
+     ylab = "Uptake rate (weight/h)", 
+     xlab = Substrate ~ concentration ~ (mmol ~ m^-3))
+```
+
+
+
+2.2.2 Model fitting
+
+```{r}
+L.minor.m1 <- nls(rate ~ Vm * conc/(K + conc), 
+                  data = L.minor, start = list(K = 20, Vm = 120), 
+                  trace = TRUE)
+```
+
+```{r}
+deviance(L.minor.m1)
+```
+
+
+```{r}
+d2 <- sum((L.minor$rate -predict(L.minor.m1))^2)
+all.equal(deviance(L.minor.m1), d2)
+```
+
+```{r}
+logLik(L.minor.m1)
+```
+
+
+```{r}
+coef(L.minor.m1)
+```
+
+
+```{r}
+summary(L.minor.m1)
+```
+
+
+```{r}
+fitted(L.minor.m1)
+```
+
+```{r}
+concVal <- with(L.minor, seq(min(conc), max(conc), length.out = 10))
+concVal
+```
+
+
+```{r}
+predict(L.minor.m1, newdata = data.frame(conc = concVal))
+```
+
+
+```{r}
+plot(rate ~ conc, 
+     data = L.minor,
+     ylim = c(10, 130), 
+     ylab = "Uptake rate (weight/h)", 
+     xlab = Substrate ~ concentration ~ (mmol ~ m^-3)) 
+lines(L.minor$conc, fitted(L.minor.m1))
+```
+
+
+```{r}
+plot(rate ~ conc, 
+     data = L.minor,
+     ylim = c(10, 130), 
+     ylab = "Uptake rate (weight/h)", 
+     xlab = Substrate ~ concentration ~ (mmol ~ m^-3))
+
+concVal <- with(L.minor, seq(min(conc), max(conc), length.out = 100))
+lines(concVal, predict(L.minor.m1, newdata = data.frame(conc = concVal)))
+abline(h = coef(L.minor.m1)[2], lty = 2)
+```
+
+
+```{r}
+L.minor.m1con <- nlsContourRSS(L.minor.m1)
+```
+
+
+```{r}
+#par(pty = "s")
+plot(L.minor.m1con, col = FALSE, nlev = 10)
+```
+
+## 2.3 Generalised linear models
+
+```{r}
+## this code should be runned in the clean R session
+## library(nlrwr) cause error 
+# data(L.minor, package = "nlrwr")
+# L.minor.m4 <- glm(rate ~ I(1/conc), 
+#                   data = L.minor, 
+#                   family = gaussian("inverse"))
+# summary(L.minor.m4)
+```
+
+
+## Excercises
+
+2.1
+
+```{r}
+y0_start = mean(RGRcurve[RGRcurve$Day == 0, "RGR"])
+y1 = mean(RGRcurve[RGRcurve$Day == 1, "RGR"])
+b_start = 1 / log(y1/y0_start)
+
+
+e2.1 <- nls(RGR ~ y0 * exp(Day/b),
+            data = RGRcurve,
+            start = list(y0 = y0_start, b = b_start))
+
+plot(RGRcurve$Day, RGRcurve$RGR, xlab = "Day", ylab = "RGR")
+nd <- with(RGRcurve, seq(min(Day), max(Day), length.out = 101))
+lines(nd, predict(e2.1, newdata = data.frame(Day = nd)), col = 2)
+```
+
+2.3
+
+```{r}
+plotfit(L.minor.m1)
+```
+
+# Ch 3
+
+
+
+# ----
