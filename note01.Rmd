@@ -370,6 +370,199 @@ MMfct2
 MMfct2(1, 2, 3)
 ```
 
+## 4.3 Conditionally linear parameters
+
+```{r}
+L.minor.m3 <- nls(rate ~ conc/(K + conc), 
+                  data = L.minor, 
+                  algorithm = "plinear",
+                  start = list(K = 20))
+summary(L.minor.m3)
+```
+
+
+```{r}
+data(segreg)
+plot(C ~ Temp, data = segreg, 
+     xlab = Mean ~ temperature ~ (degree ~ F),
+     ylab = "Energy consumption (kWh)")
+```
+
+
+```{r}
+profRSS1 <- function(gamma) {
+  deviance(lm(C ~ pmax(0, Temp - gamma), data = segreg))
+}
+profRSS2 <- Vectorize(profRSS1, "gamma")
+```
+
+
+
+```{r}
+l <- lm( C ~ pmax(0, Temp - 40), data = segreg)
+summary(l)
+```
+
+
+```{r}
+plot(segreg$Temp, segreg$C)
+points(segreg$Temp, predict(l), col = 2)
+```
+
+
+```{r}
+plot(profRSS2(Temp) ~ Temp, 
+     data = segreg,
+     type = "l", 
+     xlab = expression(gamma),
+     ylab = "Profile RSS")
+```
+
+
+```{r}
+plot(profRSS2(Temp) ~ Temp, 
+     data = data.frame(Temp = seq(min(segreg$Temp), 
+                                  max(segreg$Temp), 
+                                  length.out = 101)),
+     type = "l", 
+     xlab = expression(gamma),
+     ylab = "Profile RSS")
+```
+
+
+## 4.4 Fitting models with several predictor variables
+
+```{r}
+RScompetition.m1 <- nls(
+  biomass ~ a/(1 + b * (x + c * z)),
+  data = RScompetition,
+  start = list(a = 20, b = 1, c = 1)
+)
+summary(RScompetition.m1)
+```
+
+
+```{r}
+virDensity <- with(RScompetition, x + coef(RScompetition.m1)[3] * z)
+virDenVal <- seq(0, max(virDensity), length.out = 100)
+biomassVal <- predict(RScompetition.m1, data.frame(x = virDenVal, z = 0))
+```
+
+
+```{r}
+plot(biomassVal ~ virDenVal, type = "l", 
+     ylab = "Biomass of sensitive biotype (g/plant)",
+     xlab = Virtual ~ density ~ (plants/m^2))
+with(RScompetition, points(biomass ~ virDensity))
+```
+
+
+```{r}
+par(pty = "s")
+plot(Q ~ I, data = IQsig)
+theta <- 0:360 * (pi/180)
+lines(cos(theta), sin(theta))
+```
+
+```{r}
+IQsig.m1 <- nls(
+  ~ ((I - I0)^2 - 2 * gamma * sin(phi) * (I - I0) * (Q - Q0) + 
+       gamma * gamma * (Q - Q0)^2) - (rho * gamma * cos(phi))^2, 
+  data = IQsig, 
+  start = list(I0 = -0.005, gamma = 1, phi = -0.005, Q0 = -0.005, rho = 1))
+summary(IQsig.m1)
+```
+
+
+# 5 Model Diagnostics
+
+## 5.2 Checking the mean structure
+
+```{r}
+plot(p ~ T, data = vapCO, log = "y",
+     xlab = "Temperature (K)",
+     ylab = "Pressure (Pa)")
+```
+
+
+```{r}
+vapCO.m1 <- nls(
+  log(p) ~ A - B/(C + T), 
+  data = vapCO,
+  start = list(A = 10, B = 100, C = -10))
+summary(vapCO.m1)
+```
+
+
+```{r}
+plot(p ~ T, data = vapCO, log = "y",
+     xlab = "Temperature (K)",
+     ylab = "Pressure (Pa)")
+lines(vapCO$T, exp(fitted(vapCO.m1)), col = 2)
+```
+
+
+```{r}
+plot(weight ~ conc, data = lettuce,
+     xlab = "Concentration (mg/l)",
+     ylab = "Biomass (g)", log = "x")
+```
+
+
+```{r}
+plot(fitted(vapCO.m1), residuals(vapCO.m1),
+     xlab = "Fitted Values", ylab = "Residuals")
+abline(a = 0, b = 0)
+```
+
+
+```{r}
+plot(rootl ~ conc, data = ryegrass,
+     xlab = "Concentration (mM)",
+     ylab = "Root length (cm)")
+```
+
+
+```{r}
+ryegrass.m1 <- lm(rootl ~ as.factor(conc), data = ryegrass)
+summary(ryegrass.m1)
+```
+
+
+```{r}
+ryegrass.m2 <- nls(
+  rootl ~ c + (d - c)/(1 + exp(b * +(log(conc) - log(e)))),
+  data = ryegrass,
+  start = list(b = 1, c = 0.6, d = 8, e = 3)
+)
+summary(ryegrass.m2)
+```
+
+
+```{r}
+anova(ryegrass.m2, ryegrass.m1)
+```
+
+
+```{r}
+Q <- -2 * (logLik(ryegrass.m2) - logLik(ryegrass.m1))
+df.Q <- df.residual(ryegrass.m2) - df.residual(ryegrass.m1)
+1 - pchisq(Q, df.Q)
+```
+
+
+## 5.3 Variance homogeneity
+
+
+
+
+
+
+
+
+
+
+
 
 
 
