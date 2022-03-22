@@ -15,9 +15,9 @@ library(nlrwr)
 ```
 
 
-# Ch 1
+# 1 Introduction
 
-1.1 A stock-recruitment model
+## 1.1 A stock-recruitment model
 
 ```{r}
 plot(num.fish ~ spawn.biomass, 
@@ -27,7 +27,7 @@ plot(num.fish ~ spawn.biomass,
 ```
 
 
-1.2 Competition between plant biotypes
+## 1.2 Competition between plant biotypes
 
 ```{r}
 plot(biomass ~ x, 
@@ -39,7 +39,7 @@ plot(biomass ~ x,
 ```
 
 
-1.3 Grouped dose-response data
+## 1.3 Grouped dose-response data
 
 ```{r}
 xyplot(DryMatter ~ Dose | Herbicide,
@@ -50,7 +50,7 @@ xyplot(DryMatter ~ Dose | Herbicide,
 ```
 
 
-# Ch 2
+# 2 Getting Started
 
 ## 2.2 Getting started with nls()
 
@@ -60,12 +60,12 @@ xyplot(DryMatter ~ Dose | Herbicide,
 L.minor
 ```
 
+
 ```{r}
 plot(rate ~ conc, data = L.minor,
      ylab = "Uptake rate (weight/h)", 
      xlab = Substrate ~ concentration ~ (mmol ~ m^-3))
 ```
-
 
 
 2.2.2 Model fitting
@@ -76,6 +76,7 @@ L.minor.m1 <- nls(rate ~ Vm * conc/(K + conc),
                   trace = TRUE)
 ```
 
+
 ```{r}
 deviance(L.minor.m1)
 ```
@@ -85,6 +86,7 @@ deviance(L.minor.m1)
 d2 <- sum((L.minor$rate -predict(L.minor.m1))^2)
 all.equal(deviance(L.minor.m1), d2)
 ```
+
 
 ```{r}
 logLik(L.minor.m1)
@@ -104,6 +106,7 @@ summary(L.minor.m1)
 ```{r}
 fitted(L.minor.m1)
 ```
+
 
 ```{r}
 concVal <- with(L.minor, seq(min(conc), max(conc), length.out = 10))
@@ -187,7 +190,189 @@ lines(nd, predict(e2.1, newdata = data.frame(Day = nd)), col = 2)
 plotfit(L.minor.m1)
 ```
 
-# Ch 3
+
+# 3 Starting Values and Self-starters
+
+## 3.1 Finding starting values
+
+```{r}
+#install.packages("NISTnls")
+data(Chwirut2, package = "NISTnls")
+plot(y ~ x, 
+     data = Chwirut2, 
+     xlab = "Metal distance", 
+     ylab = "Ultrasonic response")
+```
+
+
+```{r}
+expFct <- function(x, beta1, beta2, beta3) {
+  exp(-beta1 * x)/(beta2 + beta3 * x)
+}
+
+plot(y ~ x, 
+     data = Chwirut2, 
+     xlab = "Metal distance", 
+     ylab = "Ultrasonic response",
+     ylim = c(0, 100)
+     )
+curve(expFct(x, beta1 = 1, beta2 = 0.01, beta3 = 1), add = TRUE, col = 2)
+```
+
+
+```{r}
+plot(y ~ x, data = Chwirut2, xlab = "Metal distance",
+     ylab = "Ultrasonic response", ylim = c(0, 100))
+curve(expFct(x, beta1 = 0.1, beta2 = 0.01, beta3 = 1), add = TRUE, lty = 2,
+      col = 2)
+curve(expFct(x, beta1 = 0.1, beta2 = 0.01, beta3 = 0.1), add = TRUE, lty = 3,
+      col = 3)
+curve(expFct(x, beta1 = 0.1, beta2 = 0.01, beta3 = 0.01), add = TRUE, lty = 4,
+      col = 4)
+curve(expFct(x, beta1 = 0.2, beta2 = 0.01, beta3 = 0.01), add = TRUE, lty = 1,
+      col = 6)
+```
+
+
+```{r}
+Chwirut2.m1 <- nls(
+  y ~ expFct(x, beta1, beta2, beta3),
+  data = Chwirut2,
+  start = list(beta1 = 0.2, beta2 = 0.01, beta3 = 0.01))
+summary(Chwirut2.m1)
+```
+
+
+```{r}
+## bad starting
+# Chwirut2.m0 <- nls(
+#   y ~ expFct(x, beta1, beta2, beta3),
+#   data = Chwirut2,
+#   start = list(beta1 = 1, beta2 = 0.01, beta3 = 1))
+# summary(Chwirut2.m0)
+
+## nlsLM may solve the bad starting
+Chwirut2.m0 <- minpack.lm::nlsLM(
+  y ~ expFct(x, beta1, beta2, beta3),
+  data = Chwirut2,
+  start = list(beta1 = 1, beta2 = 0.01, beta3 = 1))
+summary(Chwirut2.m0)
+```
+
+
+```{r}
+# grid.Chwirut2 <- expand.grid(list(beta1 = seq(0.1, 1, by = 0.1),
+#                                   beta2 = c(0.01),
+#                                   beta3 = seq(0.1, 1, by = 0.1)))
+grid.Chwirut2 <- expand.grid(beta1 = seq(0.1, 1, by = 0.1),
+                             beta2 =  0.01,
+                             beta3 = seq(0.1, 1, by = 0.1))
+grid.Chwirut2
+```
+
+
+```{r}
+Chwirut2.m2a <- nls2(
+  y ~ expFct(x, beta1, beta2, beta3),
+  data = Chwirut2,
+  start = grid.Chwirut2,
+  algorithm = "brute-force"
+)
+Chwirut2.m2a
+```
+
+
+```{r}
+nls(
+  y ~ expFct(x, beta1, beta2, beta3),
+  data = Chwirut2,
+  start = as.list(coef(Chwirut2.m2a)))  # input as starting value
+```
+
+## 3.2 Using self-starter functions
+
+```{r}
+L.minor.m2 <- nls(rate ~ SSmicmen(conc, Vm, K), data = L.minor)
+summary(L.minor.m2)
+```
+
+
+```{r}
+expModel <- function(predictor, b, y0) {
+  y0 * exp(predictor/b)
+}
+
+expModelInit <- function(mCall, LHS, data) {
+  xy <- sortedXyData(mCall[["predictor"]], LHS, data)
+  lmFit <- lm(log(xy[, "y"]) ~ xy[, "x"])
+  coefs <- coef(lmFit)
+  y0 <- exp(coefs[1])
+  b <- 1/coefs[2]
+  value <- c(b, y0)
+  names(value) <- mCall[c("b", "y0")]
+  value
+}
+
+SSexp2 <- selfStart(expModel, expModelInit, c("b", "y0"))
+```
+
+
+```{r}
+with(RGRcurve, SSexp2(Day, 4, 0.2))
+```
+
+
+```{r}
+## ERROR
+#getInitial(RGR ~ SSexp2(Day, b, y0), data = RGRcurve)
+```
+
+
+# 4 More on nls()
+
+## 4.2 Supplying gradient information
+
+```{r}
+MMfct1 <- function(conc, K, Vm) {
+  numer <- Vm * conc
+  denom <- K + conc
+  mean <- numer/denom
+  partialK <- -numer/(denom^2)
+  partialVm <- mean/Vm
+  attr(mean, "gradient") <- cbind(partialK, partialVm)
+  return(mean)
+}
+MMfct1(1, 2, 3)
+```
+
+
+```{r}
+L.minor.mgr1 <- nls(rate ~ MMfct1(conc, K, Vm), 
+                    data = L.minor, 
+                    start = list(K = 1, Vm = 1),
+                    trace = TRUE)
+summary(L.minor.mgr1)
+```
+
+
+```{r}
+## without derivative
+nls(rate ~ Vm * conc/(K + conc), 
+    data = L.minor, start = list(K = 1, Vm = 1), 
+    trace = TRUE)
+```
+
+
+```{r}
+MMfct2 <- deriv(~ Vm * conc / (K + conc), c("K", "Vm"), function(conc, K, Vm) {
+})
+MMfct2
+MMfct2(1, 2, 3)
+```
+
+
+
+
 
 
 
