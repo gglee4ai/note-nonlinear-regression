@@ -340,7 +340,7 @@ SSexp2 <- selfStart(expModel, expModelInit, c("b", "y0"))
 with(RGRcurve, SSexp2(Day, 4, 0.2))
 ```
 
-**Warning:** selfStart 관련한 내용이 잘 안됨 
+**Warning:** selfStart caused an ERROR
 
 ```{r}
 ## ERROR
@@ -411,8 +411,7 @@ L.minor.mgr2 <- nls(
 summary(L.minor.mgr2)
 ```
 
-요약 출력(표시되지 않음)은 수동 공급을 사용하여 얻은 것과 동일합니다.
-L.minor와 같은 작은 데이터 세트의 경우 기울기 정보를 사용해도 이점이 없습니다. Venables와 Ripley(2002a, pp. 214–216)는 기울기 정보가 함수 평가 횟수를 줄이는 더 큰 데이터 세트와 관련된 예를 살펴봅니다. Fox(2002)는 또 다른 예를 보여줍니다.
+Ref: Venables와 Ripley(2002a, pp. 214–216)
 
 ## 4.3 Conditionally linear parameters
 
@@ -444,7 +443,6 @@ profRSS1 <- function(gamma) {
 }
 profRSS2 <- Vectorize(profRSS1, "gamma")
 ```
-
 
 
 ```{r}
@@ -636,11 +634,11 @@ plot(fitted(vapCO.m1), abs(residuals(vapCO.m1)),
 
 ## 5.4 Normal distribution
 
-
 ```{r}
 ## Fig. 5.7. 
 plot(vapCO.m1)
 ```
+
 
 ### 5.4.1 QQ plot
 
@@ -725,6 +723,7 @@ plot(recruits ~ spawners,
      xlab = "Number of spawners (thousands)",
      ylab = "Number of recruits (thousands)")
 ```
+
 
 일단 nls를 이용하여 fitting을 한 후
 
@@ -936,12 +935,14 @@ plot(rootl ~ dose, data = secalonic,
      xlab = "Dose (mM)", ylab = "Root length (cm)")
 ```
 
+
 ### 7.5.1 Using t-tests
 
 ```{r}
 secalonic.m1 <- nls(rootl ~ SSfpl(dose, a, b, c, d), data = secalonic)
 summary(secalonic.m1)
 ```
+
 
 ### 7.5.2 Using F-tests
 
@@ -1133,6 +1134,7 @@ AIC(Puromycin.m1, Puromycin.m5, Puromycin.m6, Puromycin.m7)
 G.aparine
 ```
 
+
 ```{r}
 ## Fig. 8.2. 
 xyplot(drymatter ~ dose | as.factor(treatment),
@@ -1147,6 +1149,7 @@ G.aparine$treatment2 <- factor(G.aparine$treatment)
 #levels(G.aparine$treatment2) <- c("0", "1", "2")
 G.aparine
 ```
+
 
 ```{r}
 G.aparine.m1 <- nls(
@@ -1163,6 +1166,7 @@ summary(G.aparine.m1)
 concValues <- with(Puromycin, seq(min(conc), max(conc, length.out = 11)))
 concValues
 ```
+
 
 ```{r}
 stateVal1 <- levels(Puromycin$state)
@@ -1255,6 +1259,7 @@ lines(concVec, predict(vinclozolin.e5.m, data.frame(conc = concVec)), lty = 6)
 lines(concVec, predict(vinclozolin.e6.m, data.frame(conc = concVec)), lty = "3313")
 ```
 
+
 ```{r}
 vinclozolin.m1 <- nlme(
   effect ~ d/(1 + exp(b * (log(conc) - log(e)))), 
@@ -1286,26 +1291,6 @@ lines(concVec,
       predict(vinclozolin.m1, newdata = data.frame(conc = concVec), level = 0), 
       lty = 1, lwd = 3)
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # ----
