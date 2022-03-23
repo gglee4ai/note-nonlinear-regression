@@ -1,0 +1,1311 @@
+---
+title: "Nonlinear Regression with R"
+output: html_notebook
+---
+
+
+# setup
+
+```{r}
+# devtools::install_github("cran/drc")
+# devtools::install_github("cran/alr3")
+# devtools::install_github("cran/NRAIA")
+# devtools::install_github("cran/nlrwr")
+library(nlrwr)
+```
+
+
+# 1 Introduction
+
+## 1.1 A stock-recruitment model
+
+```{r}
+## Fig. 1.1. 
+plot(num.fish ~ spawn.biomass, 
+     data = M.merluccius, 
+     xlab = "Spawning biomass (1000 tonnes)",
+     ylab = "Recruitment (million fish)")
+```
+
+
+## 1.2 Competition between plant biotypes
+
+```{r}
+## Fig. 1.2.
+plot(biomass ~ x, 
+     data = RScompetition, 
+     log = "", 
+     xlab = Density ~ (plants/m^2), 
+     ylab = Biomass ~ of ~ sensitive ~ biotype ~ (g/plant), 
+     pch = as.numeric(as.factor(RScompetition$z)))
+```
+
+
+## 1.3 Grouped dose-response data
+
+```{r}
+## Fig. 1.3.
+xyplot(DryMatter ~ Dose | Herbicide,
+       data = S.alba, 
+       scales = list(x = list(log = TRUE)),
+       ylab = "Dry matter (g/pot)",
+       xlab = "Dose (g/ha)")
+```
+
+
+# 2 Getting Started
+
+## 2.2 Getting started with nls()
+
+### 2.2.1 Introducing the data example
+
+```{r}
+L.minor
+```
+
+
+```{r}
+## Fig. 2.1.
+plot(rate ~ conc, data = L.minor,
+     ylab = "Uptake rate (weight/h)", 
+     xlab = Substrate ~ concentration ~ (mmol ~ m^-3))
+```
+
+
+### 2.2.2 Model fitting
+
+```{r}
+L.minor.m1 <- nls(rate ~ Vm * conc/(K + conc), 
+                  data = L.minor, 
+                  start = list(K = 20, Vm = 120), 
+                  trace = TRUE)
+```
+
+
+```{r}
+deviance(L.minor.m1)
+```
+
+
+```{r}
+d2 <- sum((L.minor$rate -predict(L.minor.m1))^2)
+all.equal(deviance(L.minor.m1), d2)
+```
+
+
+```{r}
+logLik(L.minor.m1)
+```
+
+
+```{r}
+coef(L.minor.m1)
+```
+
+
+```{r}
+summary(L.minor.m1)
+```
+
+
+### 2.2.3 Prediction
+
+```{r}
+fitted(L.minor.m1)
+```
+
+
+```{r}
+concVal <- with(L.minor, seq(min(conc), max(conc), length.out = 10))
+predict(L.minor.m1, newdata = data.frame(conc = concVal))
+```
+
+
+### 2.2.4 Making plots
+
+```{r}
+## Fig. 2.2.
+plot(rate ~ conc, 
+     data = L.minor,
+     ylim = c(10, 130), 
+     ylab = "Uptake rate (weight/h)", 
+     xlab = Substrate ~ concentration ~ (mmol ~ m^-3)) 
+lines(L.minor$conc, fitted(L.minor.m1))
+```
+
+
+```{r}
+## Fig. 2.3.
+plot(rate ~ conc, 
+     data = L.minor,
+     ylim = c(10, 130), 
+     ylab = "Uptake rate (weight/h)", 
+     xlab = Substrate ~ concentration ~ (mmol ~ m^-3))
+
+concVal <- with(L.minor, seq(min(conc), max(conc), length.out = 100))
+lines(concVal, predict(L.minor.m1, newdata = data.frame(conc = concVal)))
+abline(h = coef(L.minor.m1)[2], lty = 2)
+```
+
+
+### 2.2.5 Illustrating the estimation
+
+```{r}
+L.minor.m1con <- nlsContourRSS(L.minor.m1)
+```
+
+
+```{r}
+## Fig. 2.4. 
+par(pty = "s")
+plot(L.minor.m1con, col = FALSE, nlev = 10)
+```
+
+
+## 2.3 Generalised linear models
+
+```{r}
+## this code should be runned in the clean R session
+## library(nlrwr) cause error 
+# data(L.minor, package = "nlrwr")
+# L.minor.m4 <- glm(rate ~ I(1/conc), 
+#                   data = L.minor, 
+#                   family = gaussian("inverse"))
+# summary(L.minor.m4)
+```
+
+
+## Excercises
+
+```{r}
+## 2.1
+y0_start = mean(RGRcurve[RGRcurve$Day == 0, "RGR"])
+y1 = mean(RGRcurve[RGRcurve$Day == 1, "RGR"])
+b_start = 1 / log(y1/y0_start)
+
+
+e2.1 <- nls(RGR ~ y0 * exp(Day/b),
+            data = RGRcurve,
+            start = list(y0 = y0_start, b = b_start))
+
+plot(RGRcurve$Day, RGRcurve$RGR, xlab = "Day", ylab = "RGR")
+nd <- with(RGRcurve, seq(min(Day), max(Day), length.out = 101))
+lines(nd, predict(e2.1, newdata = data.frame(Day = nd)), col = 2)
+```
+
+
+```{r}
+## 2.3
+plotfit(L.minor.m1)
+```
+
+
+# 3 Starting Values and Self-starters
+
+## 3.1 Finding starting values
+
+### 3.1.1 Graphical exploration
+
+```{r}
+## Fig. 3.1.
+# install.packages("NISTnls")
+data(Chwirut2, package = "NISTnls")
+plot(y ~ x, 
+     data = Chwirut2, 
+     xlab = "Metal distance", 
+     ylab = "Ultrasonic response")
+```
+
+
+```{r}
+## Fig. 3.2.
+expFct <- function(x, beta1, beta2, beta3) {
+  exp(-beta1 * x)/(beta2 + beta3 * x)
+}
+
+plot(y ~ x, 
+     data = Chwirut2, 
+     xlab = "Metal distance", 
+     ylab = "Ultrasonic response",
+     ylim = c(0, 100)
+     )
+curve(expFct(x, beta1 = 1, beta2 = 0.01, beta3 = 1), add = TRUE, col = 2)
+```
+
+
+```{r}
+## Fig. 3.3.
+plot(y ~ x, data = Chwirut2, xlab = "Metal distance",
+     ylab = "Ultrasonic response", ylim = c(0, 100))
+curve(expFct(x, beta1 = 0.1, beta2 = 0.01, beta3 = 1), add = TRUE, lty = 2,
+      col = 2)
+curve(expFct(x, beta1 = 0.1, beta2 = 0.01, beta3 = 0.1), add = TRUE, lty = 3,
+      col = 3)
+curve(expFct(x, beta1 = 0.1, beta2 = 0.01, beta3 = 0.01), add = TRUE, lty = 4,
+      col = 4)
+curve(expFct(x, beta1 = 0.2, beta2 = 0.01, beta3 = 0.01), add = TRUE, lty = 1,
+      col = 6)
+```
+
+
+```{r}
+Chwirut2.m1 <- nls(
+  y ~ expFct(x, beta1, beta2, beta3),
+  data = Chwirut2,
+  start = list(beta1 = 0.2, beta2 = 0.01, beta3 = 0.01)
+)
+summary(Chwirut2.m1)
+```
+
+
+### 3.1.2 Searching a grid
+
+```{r}
+## bad starting example
+# Chwirut2.m0 <- nls(
+#   y ~ expFct(x, beta1, beta2, beta3),
+#   data = Chwirut2,
+#   start = list(beta1 = 1, beta2 = 0.01, beta3 = 1))
+# summary(Chwirut2.m0)
+
+## nlsLM may solve the bad starting
+Chwirut2.m0 <- minpack.lm::nlsLM(
+  y ~ expFct(x, beta1, beta2, beta3),
+  data = Chwirut2,
+  start = list(beta1 = 1, beta2 = 0.01, beta3 = 1))
+summary(Chwirut2.m0)
+```
+
+
+```{r}
+grid.Chwirut2 <- expand.grid(beta1 = seq(0.1, 1, by = 0.1),
+                             beta2 =  0.01,
+                             beta3 = seq(0.1, 1, by = 0.1))
+grid.Chwirut2
+```
+
+
+```{r}
+Chwirut2.m2a <- nls2(
+  y ~ expFct(x, beta1, beta2, beta3),
+  data = Chwirut2,
+  start = grid.Chwirut2,
+  algorithm = "brute-force"
+)
+Chwirut2.m2a
+```
+
+
+```{r}
+nls(
+  y ~ expFct(x, beta1, beta2, beta3),
+  data = Chwirut2,
+  start = as.list(coef(Chwirut2.m2a)))  # starting value from Chwirut2.m2a
+```
+
+
+## 3.2 Using self-starter functions
+
+### 3.2.1 Built-in self-starter functions for nls()
+
+```{r}
+L.minor.m2 <- nls(rate ~ SSmicmen(conc, Vm, K), data = L.minor)
+summary(L.minor.m2)
+```
+
+
+### 3.2.2 Defining a self-starter function for nls()
+
+```{r}
+expModel <- function(predictor, b, y0) {
+  y0 * exp(predictor/b)
+}
+
+expModelInit <- function(mCall, LHS, data) {
+  xy <- sortedXyData(mCall[["predictor"]], LHS, data)
+  lmFit <- lm(log(xy[, "y"]) ~ xy[, "x"])
+  coefs <- coef(lmFit)
+  y0 <- exp(coefs[1])
+  b <- 1/coefs[2]
+  value <- c(b, y0)
+  names(value) <- mCall[c("b", "y0")]
+  value
+}
+
+SSexp2 <- selfStart(expModel, expModelInit, c("b", "y0"))
+```
+
+
+```{r}
+with(RGRcurve, SSexp2(Day, 4, 0.2))
+```
+
+**Warning:** selfStart 관련한 내용이 잘 안됨 
+
+```{r}
+## ERROR
+# getInitial(RGR ~ SSexp2(Day, b, y0), data = RGRcurve)
+```
+
+
+```{r}
+#RGRcurve.m1 <- nls(RGR ~ SSexp2(Day, b, y0), data = RGRcurve)
+#coef(RGRcurve.m1)
+```
+
+More examples on defining self-starter functions for nls() are found in Watkins and Venables (2006) or Venables and Ripley (2002a, pp. 216–217).
+
+# 4 More on nls()
+
+## 4.2 Supplying gradient information
+
+### 4.2.1 Manual supply
+
+```{r}
+MMfct1 <- function(conc, K, Vm) {
+  numer <- Vm * conc
+  denom <- K + conc
+  mean <- numer/denom
+  partialK <- -numer/(denom^2)
+  partialVm <- mean/Vm
+  attr(mean, "gradient") <- cbind(partialK, partialVm)
+  return(mean)
+}
+MMfct1(1, 2, 3)
+```
+
+
+```{r}
+L.minor.mgr1 <- nls(rate ~ MMfct1(conc, K, Vm), 
+                    data = L.minor, 
+                    start = list(K = 1, Vm = 1),
+                    trace = TRUE)
+summary(L.minor.mgr1)
+```
+
+
+```{r}
+## without derivative
+nls(rate ~ Vm * conc/(K + conc), 
+    data = L.minor, start = list(K = 1, Vm = 1), 
+    trace = TRUE)
+```
+
+
+### 4.2.2 Automatic supply
+
+```{r}
+MMfct2 <- deriv(~ Vm * conc / (K + conc), 
+                c("K", "Vm"), 
+                function(conc, K, Vm) {})
+MMfct2
+MMfct2(1, 2, 3)
+```
+
+
+```{r}
+L.minor.mgr2 <- nls(
+  rate ~ MMfct2(conc, + K, Vm), 
+  data = L.minor, 
+  start = list(K = 20, Vm = 120))
+summary(L.minor.mgr2)
+```
+
+요약 출력(표시되지 않음)은 수동 공급을 사용하여 얻은 것과 동일합니다.
+L.minor와 같은 작은 데이터 세트의 경우 기울기 정보를 사용해도 이점이 없습니다. Venables와 Ripley(2002a, pp. 214–216)는 기울기 정보가 함수 평가 횟수를 줄이는 더 큰 데이터 세트와 관련된 예를 살펴봅니다. Fox(2002)는 또 다른 예를 보여줍니다.
+
+## 4.3 Conditionally linear parameters
+
+### 4.3.1 nls() using the "plinear" algorithm
+
+```{r}
+L.minor.m3 <- nls(rate ~ conc/(K + conc), 
+                  data = L.minor, 
+                  algorithm = "plinear",
+                  start = list(K = 20))
+summary(L.minor.m3)
+```
+
+
+### 4.3.2 A pedestrian approach
+
+```{r}
+## Fig. 4.1.
+data(segreg)
+plot(C ~ Temp, data = segreg, 
+     xlab = Mean ~ temperature ~ (degree ~ F),
+     ylab = "Energy consumption (kWh)")
+```
+
+
+```{r}
+profRSS1 <- function(gamma) {
+  deviance(lm(C ~ pmax(0, Temp - gamma), data = segreg))
+}
+profRSS2 <- Vectorize(profRSS1, "gamma")
+```
+
+
+
+```{r}
+l <- lm( C ~ pmax(0, Temp - 40), data = segreg)
+summary(l)
+```
+
+
+```{r}
+plot(segreg$Temp, segreg$C)
+lines(segreg$Temp, predict(l), col = 2)
+```
+
+
+```{r}
+## Fig. 4.2. 
+plot(profRSS2(Temp) ~ Temp, 
+     data = segreg,
+     type = "l", 
+     xlab = expression(gamma),
+     ylab = "Profile RSS")
+```
+
+
+```{r}
+## 좀더 부드럽게 만듬
+plot(profRSS2(Temp) ~ Temp, 
+     data = data.frame(Temp = seq(min(segreg$Temp), 
+                                  max(segreg$Temp), 
+                                  length.out = 1001)),
+     type = "l", 
+     xlab = expression(gamma),
+     ylab = "Profile RSS")
+```
+
+
+## 4.4 Fitting models with several predictor variables
+
+### 4.4.1 Two-dimensional predictor
+
+```{r}
+RScompetition.m1 <- nls(
+  biomass ~ a/(1 + b * (x + c * z)),
+  data = RScompetition,
+  start = list(a = 20, b = 1, c = 1)
+)
+summary(RScompetition.m1)
+```
+
+
+```{r}
+virDensity <- with(RScompetition, x + coef(RScompetition.m1)[3] * z)
+virDenVal <- seq(0, max(virDensity), length.out = 100)
+biomassVal <- predict(RScompetition.m1, data.frame(x = virDenVal, z = 0))
+```
+
+
+```{r}
+## Fig. 4.3. 
+plot(biomassVal ~ virDenVal, type = "l", 
+     ylab = "Biomass of sensitive biotype (g/plant)",
+     xlab = Virtual ~ density ~ (plants/m^2))
+with(RScompetition, points(biomass ~ virDensity))
+```
+
+
+### 4.4.2 General least-squares minimisation
+
+```{r}
+## Fig. 4.4. 
+par(pty = "s")
+plot(Q ~ I, data = IQsig)
+theta <- 0:360 * (pi/180)
+lines(cos(theta), sin(theta))
+```
+
+
+```{r}
+IQsig.m1 <- nls(
+  ~ ((I - I0)^2 - 2 * gamma * sin(phi) * (I - I0) * (Q - Q0) + 
+       gamma * gamma * (Q - Q0)^2) - (rho * gamma * cos(phi))^2, 
+  data = IQsig, 
+  start = list(I0 = -0.005, gamma = 1, phi = -0.005, Q0 = -0.005, rho = 1))
+summary(IQsig.m1)
+```
+
+
+# 5 Model Diagnostics
+
+## 5.2 Checking the mean structure
+
+### 5.2.1 Plot of the fitted regression curve
+
+```{r}
+## Fig. 5.1.
+plot(p ~ T, data = vapCO, log = "y",
+     xlab = "Temperature (K)",
+     ylab = "Pressure (Pa)")
+```
+
+
+```{r}
+vapCO.m1 <- nls(
+  log(p) ~ A - B/(C + T), 
+  data = vapCO,
+  start = list(A = 10, B = 100, C = -10))
+summary(vapCO.m1)
+```
+
+
+```{r}
+## Fig. 5.2.
+plot(p ~ T, data = vapCO, log = "y",
+     xlab = "Temperature (K)",
+     ylab = "Pressure (Pa)")
+lines(vapCO$T, exp(fitted(vapCO.m1)), col = 2)
+```
+
+
+```{r}
+## Fig. 5.3. 
+plot(weight ~ conc, data = lettuce,
+     xlab = "Concentration (mg/l)",
+     ylab = "Biomass (g)", log = "x")
+```
+
+
+### 5.2.2 Residual plots
+
+```{r}
+## Fig. 5.4.
+plot(fitted(vapCO.m1), residuals(vapCO.m1),
+     xlab = "Fitted Values", ylab = "Residuals")
+abline(a = 0, b = 0)
+```
+
+
+```{r}
+## Fig. 5.5. 
+plot(rootl ~ conc, data = ryegrass,
+     xlab = "Concentration (mM)",
+     ylab = "Root length (cm)")
+```
+
+
+```{r}
+ryegrass.m1 <- lm(rootl ~ as.factor(conc), data = ryegrass)
+summary(ryegrass.m1)
+```
+
+
+```{r}
+ryegrass.m2 <- nls(
+  rootl ~ c + (d - c)/(1 + exp(b * +(log(conc) - log(e)))),
+  data = ryegrass,
+  start = list(b = 1, c = 0.6, d = 8, e = 3)
+)
+summary(ryegrass.m2)
+```
+
+
+```{r}
+anova(ryegrass.m2, ryegrass.m1)
+```
+
+
+```{r}
+Q <- -2 * (logLik(ryegrass.m2) - logLik(ryegrass.m1))
+df.Q <- df.residual(ryegrass.m2) - df.residual(ryegrass.m1)
+1 - pchisq(Q, df.Q)
+```
+
+
+## 5.3 Variance homogeneity
+
+### 5.3.2 Levene’s test
+
+```{r}
+with(ryegrass, leveneTest(rootl, as.factor(conc)))
+```
+
+
+```{r}
+## Fig. 5.6. 
+plot(fitted(vapCO.m1), abs(residuals(vapCO.m1)),
+     xlab = "Fitted values", ylab = "Absolute residuals")
+```
+
+
+## 5.4 Normal distribution
+
+
+```{r}
+## Fig. 5.7. 
+plot(vapCO.m1)
+```
+
+### 5.4.1 QQ plot
+
+```{r}
+## Fig. 5.8. 
+standardRes <- residuals(ryegrass.m2)/summary(ryegrass.m2)$sigma
+
+par(pty = "s")
+qqnorm(standardRes, main = "")
+abline(a = 0, b = 1)
+```
+
+
+### 5.4.2 Shapiro-Wilk test
+
+```{r}
+shapiro.test(standardRes)
+```
+
+
+## 5.5 Independence
+
+```{r}
+## Fig. 5.9. 
+plot(residuals(vapCO.m1), c(residuals(vapCO.m1)[-1], NA),
+     xlab = "Residuals", ylab = "Lagged residuals")
+```
+
+
+# 6 Remedies for Model Violations
+
+## 6.1 Variance modelling
+
+### 6.1.1 Power-of-the-mean variance model
+
+```{r}
+## Fig. 6.1. 
+plot(RGR ~ Day, data = RGRcurve,
+     xlab = "Time (days)", ylab = "Relative growth rate (%)")
+```
+
+
+```{r}
+y0_start = mean(RGRcurve[RGRcurve$Day == 0, "RGR"])
+y1 = mean(RGRcurve[RGRcurve$Day == 1, "RGR"])
+b_start = 1 / log(y1/y0_start)
+
+RGRcurve.m2 <- gnls(
+  RGR ~  y0 * exp(Day/b), 
+  data = RGRcurve,
+  start = list(y0 = y0_start, b = b_start),
+  weights = varPower()
+)
+summary(RGRcurve.m2)
+```
+
+
+```{r}
+RGRcurve.m2g <- gnls(
+  RGR ~  y0 * exp(Day/b), 
+  data = RGRcurve,
+  start = list(y0 = y0_start, b = b_start)
+  # weights = varPower() # without weights
+)
+summary(RGRcurve.m2g )
+```
+
+
+```{r}
+AIC(RGRcurve.m2, RGRcurve.m2g )
+```
+
+
+## 6.2 Transformations
+
+### 6.2.1 Transform-both-sides approach
+
+```{r}
+## Fig. 6.2. 
+plot(recruits ~ spawners, 
+     data = sockeye[-12,],
+     xlab = "Number of spawners (thousands)",
+     ylab = "Number of recruits (thousands)")
+```
+
+일단 nls를 이용하여 fitting을 한 후
+
+```{r}
+sockeye.m1 <- nls(
+  recruits ~ beta1 * spawners * exp(-beta2 * spawners),
+  data = sockeye[-12, ],
+  start = list(beta1 = 2, beta2 = 0.001)
+)
+summary(sockeye.m1)
+```
+
+
+```{r}
+## Fig. 6.3. 
+plot(fitted(sockeye.m1), abs(residuals(sockeye.m1)),
+     xlab = "Fitted values", ylab = "Absolute residuals")
+```
+
+
+### 6.2.2 Finding an appropriate transformation
+
+boxcox.nls를 이용하여 양쪽을 변화시키며 피팅을 한다.
+
+```{r}
+## Fig. 6.4.
+sockeye.m2 <- boxcox.nls(sockeye.m1)
+```
+
+
+```{r}
+bcSummary(sockeye.m2)
+```
+
+
+```{r}
+coef(summary(sockeye.m1))
+coef(summary(sockeye.m2))
+```
+
+
+## 6.3 Sandwich estimators
+
+이 내용은 정확히 이해하지는 못했음.
+
+```{r}
+vcov(sockeye.m1)
+```
+
+
+```{r}
+sandwich(sockeye.m1)
+```
+
+
+```{r}
+coeftest(sockeye.m1)
+```
+
+
+```{r}
+coeftest(sockeye.m1, vcov = sandwich)
+```
+
+
+## 6.4 Weighting
+
+### 6.4.1 Decline in nitrogen content in soil
+
+```{r}
+exp1
+```
+
+
+```{r}
+## Fig. 6.5. 
+plot(Nremaining ~ time, data = exp1,
+     xlab = "Time (years)", ylab = "Nitroge content (%)")
+```
+
+
+```{r}
+exp1.m1 <- nls(Nremaining ~ SSbiexp(time, a1, a2, b1, b2), data = exp1)
+exp1.m2 <- nls(Nremaining ~ SSbiexp(time, a1, a2, b1, b2), data = exp1,
+               weights = norep/(stdev * stdev))
+```
+
+
+```{r}
+weights(exp1.m2)
+```
+
+
+```{r}
+coef(summary(exp1.m1))
+coef(summary(exp1.m2))
+```
+
+
+```{r}
+exp2
+```
+
+
+```{r}
+exp2.m1 <- nls(Nremaining ~ SSbiexp(time, a1, a2, b1, b2), data = exp2)
+exp2.m2 <- nls(Nremaining ~ SSbiexp(time, a1, a2, b1, b2), data = exp2,
+               weights = norep/(stdev^2))
+```
+
+
+```{r}
+## Fig. 6.6. 
+plot(Nremaining ~ time, data = exp2,
+     xlab = "Time (years)", ylab = "Nitrogen content (%)")
+timeVal <- with(exp2, seq(min(time), max(time), length.out = 101))
+lines(timeVal, predict(exp2.m1, newdata = data.frame(time = timeVal)), 
+      lty = 2, col = 2)
+lines(timeVal, predict(exp2.m2, newdata = data.frame(time = timeVal)), 
+      lty = 3, col = 3)
+```
+
+
+```{r}
+coef(summary(exp2.m1))
+coef(summary(exp2.m2))
+```
+
+
+```{r}
+summary(exp1.m1)
+summary(exp1.m2)
+```
+
+
+# 7 Uncertainty, Hypothesis Testing, and Model Selection
+
+## 7.1 Profile likelihood
+
+```{r}
+L.minor.m1 <- update(L.minor.m1, trace = FALSE)
+L.minor.m1pro <- profile(L.minor.m1)
+```
+
+
+```{r}
+## Fig. 7.1. 
+plot(L.minor.m1pro)
+```
+
+
+```{r}
+## Fig. 7.2. 
+plot(L.minor.m1pro, absVal = FALSE)
+```
+
+
+```{r}
+confint(L.minor.m1)
+```
+
+
+## 7.2 Bootstrap
+
+```{r}
+set.seed(222)
+L.minor.m1boot <- nlsBoot(L.minor.m1)
+summary(L.minor.m1boot)
+```
+
+
+```{r}
+## Fig. 7.3. 
+par(mfrow = c(1, 2))
+qqnorm(L.minor.m1boot$coefboot[, 1], main = "K")
+qqnorm(L.minor.m1boot$coefboot[, 2], main = "Vm")
+```
+
+
+## 7.3 Wald confidence intervals
+
+```{r}
+confint2(L.minor.m1)
+```
+
+
+```{r}
+confint2(L.minor.m1, level = 0.99)
+```
+
+
+## 7.4 Estimating derived parameters
+
+```{r}
+deltaMethod(L.minor.m1, "Vm/(4*K)")
+```
+
+
+## 7.5 Nested models
+
+```{r}
+secalonic
+```
+
+
+```{r}
+## Fig. 7.4.
+plot(rootl ~ dose, data = secalonic,
+     xlab = "Dose (mM)", ylab = "Root length (cm)")
+```
+
+### 7.5.1 Using t-tests
+
+```{r}
+secalonic.m1 <- nls(rootl ~ SSfpl(dose, a, b, c, d), data = secalonic)
+summary(secalonic.m1)
+```
+
+### 7.5.2 Using F-tests
+
+```{r}
+secalonic.m2 <- nls(rootl ~ SSlogis(dose, a, c, d), data = secalonic)
+summary(secalonic.m2)
+```
+
+
+```{r}
+anova(secalonic.m2, secalonic.m1)
+```
+
+
+## 7.6 Non-nested models
+
+```{r}
+M.merluccius
+plot(num.fish ~ spawn.biomass, data = M.merluccius)
+```
+
+4가지 조금씩 다른 모델을 비교
+
+```{r}
+M.merluccius.bh <- nls(
+  num.fish ~ spawn.biomass * alpha/(1 + spawn.biomass/k),
+  data = M.merluccius, start = list(alpha = 5, k = 50)
+)
+
+M.merluccius.de <- nls(
+  num.fish ~ spawn.biomass * alpha * (1 - c * spawn.biomass/k)^(1/c),
+  data = M.merluccius, start = list(alpha = 4.4, k = 106, c = 0.86)
+)
+
+M.merluccius.ri <- nls(
+  num.fish ~ spawn.biomass * alpha * exp(-spawn.biomass/k),
+  data = M.merluccius, start = list(alpha = 5, k = 50)
+)
+
+M.merluccius.sh <- nls(
+  num.fish ~ spawn.biomass * alpha/(1 + (spawn.biomass/k)^c),
+  data = M.merluccius, start = list(alpha = 3.87, k = 61.72, c = 2.25),
+  control = nls.control(maxiter = 100)
+)
+```
+
+Residual standard error를 계산하면,
+
+```{r}
+summary(M.merluccius.bh)$sigma
+summary(M.merluccius.de)$sigma
+summary(M.merluccius.ri)$sigma
+summary(M.merluccius.sh)$sigma
+```
+
+AIC를 비교해보면,
+
+```{r}
+AIC(M.merluccius.bh)
+AIC(M.merluccius.de)
+AIC(M.merluccius.ri)
+AIC(M.merluccius.sh)
+```
+
+Burnham and Anderson (2002, pp. 70–72)은 한 모델이 다른 모델에 비하여 절대적으로 우위에 있기 위해서는 AIC의 차이가 10 이상의 차이가 필요하다는 경험적 법칙을 제시하였다. 따라서 4 모델 사이에서 큰 차이는 없다. 
+
+
+# 8 Grouped Data
+
+## 8.1 Fitting grouped data models
+
+```{r}
+Puromycin
+```
+
+
+```{r}
+## Fig. 8.1.
+xyplot(rate ~ conc | state, data = Puromycin,
+       xlab = "Substrate concentration (ppm)",
+       ylab = "Reaction rates\n(counts/min/min)")
+```
+
+
+### 8.1.1 Using nls()
+
+```{r}
+Puromycin.m1 <- nls(
+  rate ~ Vm[state] * conc/(K[state] + conc),
+  data = Puromycin,
+  start = list(K = c(0.1, 0.1), Vm = c(200, 200))
+)
+summary(Puromycin.m1)
+```
+
+
+### 8.1.2 Using gnls()
+
+```{r}
+Puromycin.m2 <- gnls(
+  rate ~ Vm * conc/(K + conc),
+  data = Puromycin,
+  start = list(Vm = c(200, 200), K = c(0.1, 0.1)),
+  params = list(Vm ~ state - 1, K ~ state - 1)
+)
+summary(Puromycin.m2)
+```
+
+### 8.1.3 Using nlsList()
+
+```{r}
+Puromycin.m3 <- nlsList(
+  rate ~ SSmicmen(conc, Vm, K) | state,
+  data = Puromycin
+)
+summary(Puromycin.m3)
+```
+
+
+```{r}
+Puromycin2 <- groupedData(rate ~ conc | state, data = Puromycin)
+Puromycin.m4 <- nlsList(
+  rate ~ SSmicmen(conc, a, b), data = Puromycin2
+)
+summary(Puromycin.m4)
+```
+
+
+## 8.2 Model reduction and parameter models
+
+### 8.2.1 Comparison of entire groups
+
+```{r}
+Puromycin.m5 <- nls(
+  rate ~ Vm * conc/(K + conc), data = Puromycin,
+  start = list(K = 0.1, Vm = 200))
+summary(Puromycin.m5)
+```
+
+
+```{r}
+anova(Puromycin.m5, Puromycin.m1)
+```
+
+
+```{r}
+AIC(Puromycin.m5, Puromycin.m1)
+```
+
+### 8.2.2 Comparison of specific parameters
+
+```{r}
+Puromycin.m6 <- nls(
+  rate ~ Vm * conc/(K[state] + conc), 
+  data = Puromycin, 
+  start = list(K = c(0.1, 0.1), Vm = 200))
+summary(Puromycin.m6)
+```
+
+
+```{r}
+anova(Puromycin.m6, Puromycin.m1)
+```
+
+
+```{r}
+Puromycin.m7 <- nls(
+  rate ~ Vm[state] * conc/(K + conc), 
+  data = Puromycin, start = list(K = 0.1, Vm = c(200, 200))
+)
+summary(Puromycin.m7)
+```
+
+
+```{r}
+anova(Puromycin.m7, Puromycin.m1)
+```
+
+
+AIC로 비교해 보아도 Puromycin.m7이 더욱 좋다. 
+
+```{r}
+AIC(Puromycin.m1, Puromycin.m5, Puromycin.m6, Puromycin.m7)
+```
+
+## 8.3 Common control
+
+```{r}
+G.aparine
+```
+
+```{r}
+## Fig. 8.2. 
+xyplot(drymatter ~ dose | as.factor(treatment),
+       data = G.aparine,
+       xlab = "Dose (g/ha)", ylab = "Dry matter (mg/pot)")
+```
+
+이미 데이터에서 treatment 0가 없어졌음. 아마도 데이터를 업데이트 한 것으로 추측됨. 
+
+```{r}
+G.aparine$treatment2 <- factor(G.aparine$treatment)
+#levels(G.aparine$treatment2) <- c("0", "1", "2")
+G.aparine
+```
+
+```{r}
+G.aparine.m1 <- nls(
+  drymatter ~ c[treatment2] + (d - c[treatment2])/(1 + exp(b[treatment2] * (log(dose) - log(e[treatment2])))),
+  data = G.aparine, 
+  start = list(b = c(2, 2), c = c(500, 100), d = 1000, e = c(50, 100)))
+summary(G.aparine.m1)
+```
+
+
+## 8.4 Prediction
+
+```{r}
+concValues <- with(Puromycin, seq(min(conc), max(conc, length.out = 11)))
+concValues
+```
+
+```{r}
+stateVal1 <- levels(Puromycin$state)
+stateVal1
+```
+
+
+```{r}
+csValues1 <- expand.grid(conc = concValues, state = stateVal1)
+csValues1
+```
+
+
+```{r}
+predict(Puromycin.m7, newdata = csValues1)
+```
+
+
+```{r}
+stateVal2 <- factor("untreated", levels = c("treated", "untreated"))
+stateVal2
+```
+
+
+```{r}
+csValues2 <- data.frame(conc = concValues, state = stateVal2)
+csValues2
+```
+
+
+```{r}
+predict(Puromycin.m1, newdata = csValues2)
+```
+
+
+## 8.5 Nonlinear mixed models
+
+```{r}
+vinclozolin
+```
+
+
+```{r}
+## Fig. 8.3.
+xyplot(effect ~ conc | exper, data = vinclozolin,
+       xlab = expression(paste("Concentration (", mu, "M)")),
+       ylab = "Luminescence (LU")
+```
+
+
+```{r}
+LL3.formula <- effect ~ d/(1 + exp(b * (log(conc) - log(e))))
+
+vinclozolin.e1.m <- nls(
+  LL3.formula, data = vinclozolin, subset = exper == 10509,  
+  start = list(b = 1, d = 1000, e = 0.26))
+vinclozolin.e2.m <- nls(
+  LL3.formula, data = vinclozolin, subset = exper == 10821,  
+  start = list(b = 1, d = 1000, e = 0.26))
+vinclozolin.e3.m <- nls(
+  LL3.formula, data = vinclozolin, subset = exper == 10828,  
+  start = list(b = 1, d = 1000, e = 0.26))
+vinclozolin.e4.m <- nls(
+  LL3.formula, data = vinclozolin, subset = exper == 10904,  
+  start = list(b = 1, d = 2700, e = 0.03))
+vinclozolin.e5.m <- nls(
+  LL3.formula, data = vinclozolin, subset = exper == 11023,  
+  start = list(b = 1, d = 1000, e = 0.26))
+vinclozolin.e6.m <- nls(
+  LL3.formula, data = vinclozolin, subset = exper == 11106,  
+  start = list(b = 0.5, d = 2600, e = 0.02))
+```
+
+
+```{r, fig.width=3.3, fig.height=3, warning=FALSE}
+## Fig. 8.4. 
+#par(pty = "s")
+plot(effect ~ conc, data = vinclozolin,
+     pch = as.numeric(exper), 
+     log = "x",
+     xlim = c(1e-04, 10), 
+     xlab = expression(paste("Concentration(", mu, "M)")), 
+     ylab = "Luminescence(LU)")
+concVec <- exp(seq(log(1e-04), log(10), length.out = 50))
+lines(concVec, predict(vinclozolin.e1.m, data.frame(conc = concVec)), lty = 2)
+lines(concVec, predict(vinclozolin.e2.m, data.frame(conc = concVec)), lty = 3)
+lines(concVec, predict(vinclozolin.e3.m, data.frame(conc = concVec)), lty = 4)
+lines(concVec, predict(vinclozolin.e4.m, data.frame(conc = concVec)), lty = 5)
+lines(concVec, predict(vinclozolin.e5.m, data.frame(conc = concVec)), lty = 6)
+lines(concVec, predict(vinclozolin.e6.m, data.frame(conc = concVec)), lty = "3313")
+```
+
+```{r}
+vinclozolin.m1 <- nlme(
+  effect ~ d/(1 + exp(b * (log(conc) - log(e)))), 
+  data = vinclozolin,
+  fixed = list(b ~ 1, d ~ 1, e ~ 1), 
+  random = d ~ 1 | exper, 
+  start = c(1, 1000, 0.1))
+summary(vinclozolin.m1)
+```
+
+
+```{r, fig.width=3.3, fig.height=3, warning=FALSE}
+## Fig. 8.5.
+#par(pty = "s")
+plot(effect ~ conc, data = vinclozolin,
+     pch = as.numeric(exper), 
+     log = "x",
+     xlim = c(1e-04, 10), 
+     xlab = expression(paste("Concentration(", mu, "M)")), 
+     ylab = "Luminescence(LU)")
+concVec <- exp(seq(log(1e-04), log(10), length.out = 50))
+lines(concVec, predict(vinclozolin.e1.m, data.frame(conc = concVec)), lty = 2)
+lines(concVec, predict(vinclozolin.e2.m, data.frame(conc = concVec)), lty = 3)
+lines(concVec, predict(vinclozolin.e3.m, data.frame(conc = concVec)), lty = 4)
+lines(concVec, predict(vinclozolin.e4.m, data.frame(conc = concVec)), lty = 5)
+lines(concVec, predict(vinclozolin.e5.m, data.frame(conc = concVec)), lty = 6)
+lines(concVec, predict(vinclozolin.e6.m, data.frame(conc = concVec)), lty = "3313")
+lines(concVec, 
+      predict(vinclozolin.m1, newdata = data.frame(conc = concVec), level = 0), 
+      lty = 1, lwd = 3)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ----
