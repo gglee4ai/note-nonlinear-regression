@@ -7,10 +7,10 @@ output: html_notebook
 # setup
 
 ```{r}
-# devtools::install_github("cran/drc")
-# devtools::install_github("cran/alr3")
-# devtools::install_github("cran/NRAIA")
-# devtools::install_github("cran/nlrwr")
+# devtools::install_github("cran/drc", force = TRUE)
+# devtools::install_github("cran/alr3", force = TRUE)
+# devtools::install_github("cran/NRAIA", force = TRUE)
+# devtools::install_github("cran/nlrwr", force = TRUE)
 library(nlrwr)
 ```
 
