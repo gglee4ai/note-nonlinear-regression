@@ -3,7 +3,6 @@ title: "minpack.lm 실습"
 output: html_notebook
 ---
 
-
 ```{r}
 library(minpack.lm)
 ```
@@ -35,7 +34,6 @@ nls.out <- nls.lm(par=parStart, fn = residFun, observed = simDNoisy,
                   xx = x, control = nls.lm.control(nprint = 1))
 ```
 
-
 ```{r}
 plot(x, simDNoisy, main = "data")
 lines(x, getPred(as.list(coef(nls.out)), x), col = 2, lwd = 2)
@@ -44,7 +42,6 @@ lines(x, getPred(as.list(coef(nls.out)), x), col = 2, lwd = 2)
 ```{r}
 summary(nls.out)
 ```
-
 
 ### example 2
 
@@ -85,7 +82,6 @@ out <- nls.lm(par = guess, fn = fcn, jac = fcn.jac,
               TT = TT, N = N, control = nls.lm.control(nprint = 1))
 ```
 
-
 ```{r}
 N1 <- do.call("f", c(list(TT = TT), out$par))
 
@@ -99,11 +95,9 @@ main="log residual sum of squares vs. iteration number",
 xlab="iteration", ylab="log residual sum of squares", pch=21,bg=2)
 ```
 
-
 ```{r}
 summary(out)
 ```
-
 
 # nlsLM
 
@@ -111,6 +105,9 @@ summary(out)
 
 ```{r}
 DNase
+```
+
+```{r}
 DNase1 <- subset(DNase, Run == 1)
 fm1DNase1 <- nlsLM(density ~ SSlogis(log(conc), Asym, xmid, scal), DNase1)
 fm1DNase1 <- nlsLM(density ~ Asym/(1 + exp((xmid - log(conc))/scal)), 
@@ -122,11 +119,9 @@ fm1DNase1 <- nlsLM(density ~ Asym/(1 + exp((xmid - log(conc))/scal)),
 coef(fm1DNase1)
 ```
 
-
 ```{r}
 confint(fm1DNase1)
 ```
-
 
 ```{r}
 deviance(fm1DNase1)
@@ -135,7 +130,6 @@ deviance(fm1DNase1)
 ```{r}
 df.residual(fm1DNase1)
 ```
-
 
 ```{r}
 fitted(fm1DNase1)
@@ -165,26 +159,21 @@ profile(fm1DNase1)
 residuals(fm1DNase1)
 ```
 
-
 ```{r}
 summary(fm1DNase1)
 ```
-
 
 ```{r}
 update(fm1DNase1)
 ```
 
-
 ```{r}
 vcov(fm1DNase1)
 ```
 
-
 ```{r}
 weights(fm1DNase1)
 ```
-
 
 ## weighted nonlinear regression
 
@@ -202,7 +191,6 @@ Pur.wt2 <- nlsLM(rate ~ (Vm * conc)/(K + conc), data = Treated,
 all.equal(coef(Pur.wt1), coef(Pur.wt2))
 ```
 
-
 ```{r}
 plot(Treated$conc, Treated$rate)
 ```
@@ -217,13 +205,11 @@ y <- 2*x + 3
 # End(Not run)
 ```
 
-
 ```{r}
 nlsLM(y ~ a + b * x, start = list(a = 0.12345, b = 0.54321))
 ```
 
-
-##  Examples from 'nls.lm' doc
+## Examples from 'nls.lm' doc
 
 ```{r}
 x <- seq(0,5, length = 100)
@@ -243,7 +229,6 @@ plot(x, simDNoisy, main = "data")
 lines(x, fitted(mod), col = 2, lwd = 2)
 ```
 
-
 ```{r}
 TT <- seq(0, 8, length = 501)
 tau <- 2.2
@@ -260,7 +245,6 @@ plot(TT, N, main = "data")
 lines(TT, fitted(mod), col = 2, lwd = 2)
 ```
 
-
 # wfct
 
 ```{r}
@@ -272,13 +256,11 @@ nlsLM(rate ~ Vm * conc/(K + conc), data = Treated,
       start = c(Vm = 200, K = 0.05), weights = wfct(1/rate))
 ```
 
-
 ```{r}
 ## Weighting by square root of predictor \sqrt{x_i}:
 nlsLM(rate ~ Vm * conc/(K + conc), data = Treated,
       start = c(Vm = 200, K = 0.05), weights = wfct(sqrt(conc)))
 ```
-
 
 ```{r}
 ## Weighting by inverse square of fitted values 1/\hat{y_i}^2:
@@ -286,18 +268,8 @@ nlsLM(rate ~ Vm * conc/(K + conc), data = Treated,
       start = c(Vm = 200, K = 0.05), weights = wfct(1/fitted^2))
 ```
 
-
 ```{r}
 ## Weighting by inverse variance 1/\sigma{y_i}^2:
 nlsLM(rate ~ Vm * conc/(K + conc), data = Treated,
       start = c(Vm = 200, K = 0.05), weights = wfct(1/error^2))
 ```
-
-
-
-
-
-
-
-
-
