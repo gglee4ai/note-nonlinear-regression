@@ -1,0 +1,189 @@
+---
+title: "Nonlinear Regression (Archontoulis and Miguez) paper"
+output: html_notebook
+---
+
+<https://femiguez.github.io/nlraa-docs/nlraa-AgronJ-paper.html>
+
+```{r}
+library(nlraa)
+library(nlme)
+library(ggplot2)
+```
+
+```{r}
+data(sm)
+str(sm)
+```
+
+```{r}
+sm
+```
+
+```{r}
+ggplot(sm, aes(DOY, Yield, color = Crop, pch = Crop)) +
+  geom_point() +
+  facet_wrap(~Input)
+```
+
+```{r}
+sm$eu <- with(sm, factor(Block):factor(Input):factor(Crop))
+sm2 <- subset(sm, DOY != 141)
+```
+
+```{r}
+smG <- groupedData(Yield ~ DOY | eu, data = sm2)
+head(smG)
+```
+
+```{r}
+fit.lis <- nlsList(Yield ~ SSbgf(DOY, w.max, t.e, t.m), data = smG)
+```
+
+```{r}
+plot(fit.lis)
+```
+
+```{r}
+plot(intervals(fit.lis))
+```
+
+```{r}
+## But this works better
+## Added 2020/1/2
+fit.lis.rp <- nlsList(Yield ~ SSbgrp(DOY, w.max, lt.e, ldt), data = smG) 
+```
+
+```{r}
+fit.me <- nlme(
+  fit.lis, 
+  control = list(maxIter = 100, msMaxIter = 300, pnlsMaxIter = 20)
+)
+```
+
+```{r}
+plot(fit.me)
+```
+
+```{r, fig.width=4, fig.height=3}
+plot(augPred(fit.me, level = 0:1))
+```
+
+```{r}
+fit.lis2 <- nlsList(Yield ~ bgf2(DOY, w.max, w.b = 0, t.e, t.m, t.b = 141),
+                    data = smG,
+                    start = c(w.max = 30, t.e=280, t.m=240))
+```
+
+```{r}
+plot(fit.lis2)
+```
+
+```{r}
+fit.me2 <- nlme(fit.lis2)
+```
+
+```{r}
+fit2.me2 <- update(fit.me2, random = pdDiag(w.max + t.e + t.m ~ 1))
+```
+
+```{r}
+anova(fit.me2, fit2.me2)
+```
+
+```{r}
+fe <- fixef(fit2.me2)
+fe
+```
+
+```{r}
+fit3.me2 <- update(
+  fit2.me2, 
+  fixed = list(w.max + t.e + t.m ~ Crop),
+  start = c(fe[1], -10, 20, fe[2], -40, 0, fe[3], -40, 0)
+)
+summary(fit3.me2)
+```
+
+```{r}
+fe2 <- fixef(fit3.me2)
+fe2
+```
+
+```{r}
+fit4.me2 <- update(
+  fit3.me2, 
+  fixed = list(w.max + t.e + t.m ~ Crop + Input),
+  start = c(fe2[1:3], 0, fe2[4:6], 0, fe2[7:9], 0))
+summary(fit4.me2)
+```
+
+```{r}
+## and the interaction
+fe3 <- fixef(fit4.me2)
+fit5.me2 <- update(fit4.me2,
+                   fixed = list(w.max + t.e + t.m
+                     ~ Crop + Input + Crop:Input),
+                  start = c(fe3[1:4], 0, 0,
+                            fe3[5:8], 0, 0,
+                            fe3[9:12], 0, 0))
+summary(fit5.me2)
+```
+
+```{r}
+fit6.me2 <- update(
+  fit5.me2,
+  weights = varPower(form = ~ fitted(.) | Crop)
+)
+
+fit7.me2 <- update(
+  fit6.me2, 
+  weights = varPower(form = ~ fitted(.))
+)
+
+anova(fit6.me2, fit7.me2)
+```
+
+```{r}
+fit6.me2
+```
+
+```{r}
+fit8.me2 <- gnls(
+  Yield ~ bgf2(DOY, w.max, t.e, t.m, w.b=0, t.b=141),
+  data = smG,
+  params = list(w.max + t.e + t.m ~ Crop + Input + Crop:Input),
+  weights = varPower(form = ~ fitted(.) | Crop),
+  start = fixef(fit7.me2))
+anova(fit6.me2, fit8.me2)
+```
+
+```{r}
+anova(fit8.me2)
+```
+
+```{r}
+print(plot(fit8.me2))
+```
+
+```{r}
+smG$prds <- fitted(fit8.me2)
+
+doys <- 168:303
+ndat <- expand.grid(DOY=doys, Crop= unique(smG$Crop), Input=c(1,2))
+ndat$preds <- predict(fit8.me2, newdata = ndat)
+
+## Here I'm just removing prediction for maize that go beyond
+## day of the year 270
+ndat2 <- ndat
+ndat2[ndat2$Crop == "M" & ndat2$DOY > 270,"preds"] <- NA
+ndat2 <- na.omit(ndat2)
+ndat2
+```
+
+```{r}
+ggplot(sm, aes(DOY, Yield, color = Crop, shape = Crop)) +
+  geom_point() +
+  geom_line(aes(DOY, preds, linetype = Crop, color = Crop), data = ndat2) +
+  facet_wrap(~Input)
+```
