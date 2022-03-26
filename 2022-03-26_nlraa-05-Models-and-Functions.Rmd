@@ -1,0 +1,135 @@
+---
+title: "Models and Functions for Mixed Models"
+output: html_notebook
+---
+
+# Intro
+
+The puspose of this note is to make a connection between R functions and the mathematical notation of linear and (non)linear mixed models. One goal is to produce a table that maps R functions with notation for these models.
+
+This document is a work in progress.
+
+# Linear Model
+
+```{r}
+library(nlme)
+library(nlraa)
+library(ggplot2)
+```
+
+```{r}
+set.seed(1231)
+x <- rnorm(20)
+y <- 1 + 2 * x + rnorm(20, sd = 0.5)
+df <- data.frame(x = x, y = y)
+plot(x, y)
+```
+
+```{r}
+fit <- lm(y ~ x)
+summary(fit)
+```
+
+```{r}
+coef(fit)
+```
+
+```{r}
+sigma(fit)
+```
+
+```{r}
+vcov(fit)
+```
+
+```{r}
+ sigma(fit)^2 * solve(crossprod(model.matrix(fit)))
+```
+
+```{r}
+model.matrix(y ~ x, data = df)
+```
+
+```{r}
+lm.vc <- var_cov(fit)
+lm.vc
+```
+
+```{r}
+par(pty = "s")
+image(log(lm.vc[, ncol(lm.vc):1]))
+```
+
+# Generalized least squares (gls)
+
+```{r}
+data(ChickWeight)
+ggplot(ChickWeight, aes(Time, weight)) + geom_point()
+```
+
+```{r}
+fit.gls <- gls(weight ~ Time, data = ChickWeight,
+               weights = varPower())
+fit.gls
+```
+
+```{r}
+fit.gls.vc <- var_cov(fit.gls)
+fit.gls.vc[1:7, 1:7]
+```
+
+```{r}
+par(pty = "s")
+ns <- 1:24
+vc2 <- fit.gls.vc[ns, ns]
+round(vc2, 0)
+image(log(vc2[,ncol(vc2):1]), main = "")
+```
+
+```{r}
+par(pty = "s")
+ns <- 1:nrow(ChickWeight)
+vc2 <- fit.gls.vc[ns, ns]
+image(log(vc2[,ncol(vc2):1]), main = "")
+```
+
+```{r}
+fit.gls2 <- gls(weight ~ Time, data = ChickWeight,
+                weights = varPower(), 
+                correlation = corCAR1(form = ~ Time | Chick))
+fit.gls2
+```
+
+```{r}
+fit.gls2.vc <- var_cov(fit.gls2)
+round(fit.gls2.vc[1:13,1:13],0)
+```
+
+```{r}
+par(pty = "s")
+vc2.36 <- fit.gls2.vc[1:36,1:36]
+image(log(vc2.36[,ncol(vc2.36):1]),
+      main = "Covariance matrix of residuals \n for the first three Chicks (log-scale)")
+```
+
+```{r, fig.asp=1}
+ggplot(data = ChickWeight, aes(x = Time, y = weight)) + 
+  facet_wrap( ~ Chick) + 
+  geom_point()
+```
+
+```{r}
+IC_tab(fit.gls, fit.gls2)
+```
+
+```{r}
+plot(fit.gls)
+```
+
+
+```{r}
+plot(fit.gls2)
+```
+
+
+# ----
