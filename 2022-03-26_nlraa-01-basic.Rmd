@@ -71,6 +71,8 @@ ggplot(barley, aes(NF, yield, color = as.factor(year))) +
 
 ## Barley
 
+http://miguezlab.agron.iastate.edu/OldWebsite/Research/Talks/ASA_Miguez.pdf
+
 ```{r}
 library(nlme)
 data(barley)
@@ -85,8 +87,8 @@ fit.nlme <- nlme(fit.nlis)
 plot(fit.nlme)
 ```
 
-```{r}
-plot(augPred(fit.nlme, level = 0:1))
+```{r, fig.width=4, fig.height=4}
+plot(augPred(fit.nlme, level = 0:1), layout = c(5, 4))
 ```
 
 ```{r}
