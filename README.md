@@ -1,3 +1,8 @@
-# study-nonlinear-regression
+# study-nlraa-nonlinear-regression-for-agricultural-applications
 
-비선형회귀 관련 중요한 패키지에 대해서 실습한 코드들입니다.
+nlraa 패키지와 이와 관련되어 공부한 내용들입니다.
+
+https://github.com/femiguez/nlraa
+
+- nlsLM
+- nlraa
