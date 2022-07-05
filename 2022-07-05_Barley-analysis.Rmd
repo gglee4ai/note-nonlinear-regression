@@ -1,0 +1,239 @@
+---
+title: "Barley"
+output: html_notebook
+---
+
+# setup
+
+```{r}
+library(lattice)
+library(nlme)
+library(MASS)
+```
+
+# EDA
+
+Analyzing data from Aril Vold paper on barley response to N fertilizer
+
+```{r}
+byield <- read.table("input/BarleyYield.txt", header = TRUE)
+```
+
+```{r}
+xyplot(yield ~ NF | factor(year),
+  data = byield,
+  as.table = TRUE, type = "o", lwd = 2, col = "blue",
+  xlab = list("N fertilizer (g/m2)", cex = 1.5),
+  ylab = list("Yield (g/m2)", cex = 1.5)
+)
+```
+
+```{r}
+xyplot(yield ~ year,
+  data = byield, group = factor(NF), type = "o",
+  ylab = "Yield (g/m2)",
+  main = "Trend of Barley yields for 1970-1988"
+)
+```
+
+Defining the structure of the data
+
+```{r}
+byieldG <- groupedData(yield ~ NF | year, data = byield)
+```
+
+Graphic tools provided by nlme
+
+```{r, fig.width=3, fig.height=3}
+plot(byieldG, col = "black", main = "Barley yield for 1970-88", aspect = 0.8)
+```
+
+We can first try to fit an asymptotic model to all the data.
+
+```{r}
+fit.nls <- nls(yield ~ SSasymp(NF, th1, th2, lrc), data = byieldG)
+summary(fit.nls)
+```
+
+Confidence intervals from MASS
+
+```{r}
+confint(fit.nls)
+```
+
+Residuals by year. We are not capturing the structure of the data
+
+```{r}
+plot(fit.nls, year ~ resid(.), abline = 0)
+```
+
+```{r}
+NFs <- data.frame(NF = seq(0, 14, 0.5))
+byield.pred <- predict(fit.nls, newdata = NFs)
+```
+
+```{r}
+xyplot(yield ~ NF,
+  data = byield,
+  xlab = list("N fertilizer (g/m2)", cex = 2),
+  ylab = list("Yield (g/m2)", cex = 2),
+  scales = list(x = list(cex = 1.5), y = list(cex = 1.5)),
+  panel = function(x, y, ...) {
+    panel.xyplot(x, y, cex = 1.5, pch = 21, ...)
+    panel.xyplot(NFs$NF, byield.pred, type = "l", col = "black", lwd = 2, ...)
+  }
+)
+```
+
+This analysis ignores the structure of the data where years are poorly modeled if we are willing to model years as random effects we could accommodate this better. Here we are also ignoring the unbalanced NF
+
+Fitting one function for each year
+
+```{r}
+fit.lis <- nlsList(yield ~ SSasymp(NF, th1, th2, lrc), data = byieldG)
+```
+
+```{r}
+plot(intervals(fit.lis), layout = c(3, 1), lcol = "black", par.strip.text = list(cex = 2), col = "black")
+```
+
+```{r}
+## This first graph suggest that we do need random effects for theta 1 and theta 2
+## but the random effect for lrc might not be needed
+
+plot(fit.lis, year ~ resid(.), abline = 0)
+```
+
+```{r}
+## This plot shows a much better spread for the residuals than the single non-linear
+## equation fitted to all of the data. This is naturally expected.
+```
+
+```{r}
+plot(fit.lis, id = 0.25, adj = -1)
+```
+
+```{r}
+## The standardized residuals allows us to see the outliers for individual years
+## Notice that they are within 2
+
+## The problem with this approach is that we are using (19 x 3 = 57) 57 parameters
+## to model these data and we are not taking advantage of the similarity among curves
+## additionally we don't have an estimate of how much these parameters vary among years
+
+## Finally fitting a non-linear mixed model
+
+fit.nlme <- nlme(fit.lis)
+fit.nlme
+```
+
+```{r}
+intervals(fit.nlme)
+```
+
+```{r}
+## Comparing these estimates to the simple non-linear function
+
+## Simple
+coef(fit.nls)
+```
+
+```{r}
+## nlme
+fit.nlme$coefficients$fixed
+```
+
+```{r}
+## Model checking
+
+plot(fit.nlme, id = 0.2)
+```
+
+```{r}
+## These residuals look even better than the ones from the individual fits
+qqnorm(fit.nlme)
+```
+
+```{r}
+## Normality is not a problem here
+plot(ranef(fit.nlme, augFrame = T), layout = c(3, 1))
+```
+
+```{r}
+## This is an interesting plot because it shows the variability in the random effects
+## by year. It would be interesting to add a plot where the years are sorted to detect
+## a possible trend.
+
+ranef.fnlme <- ranef(fit.nlme, augFrame = TRUE)
+dd <- data.frame(ind = 1:19, rn = row.names(ranef.fnlme))
+dd.o <- dd[order(dd$rn), ]$ind
+```
+
+```{r}
+ranef.fnlme2 <- ranef.fnlme[dd.o, ]
+
+plot(ranef.fnlme2, layout = c(3, 1))
+```
+
+```{r}
+xyplot(ranef.fnlme2$th2 ~ 1970:1988,
+  type = c("p", "r"),
+  xlab = "year", ylab = "theta 2 random effect",
+  pch = 16
+)
+```
+
+```{r}
+qqnorm(fit.nlme, ~ ranef(.), col = "black")
+```
+
+```{r}
+## Normality of the random effects for each parameter
+
+pairs(fit.nlme, pch = 19, col = "black")
+```
+
+```{r}
+## Visual assesment of the correlation for the random effects
+intervals(fit.nlme, which = "var-cov")
+```
+
+```{r}
+## Need to add an interpretation of the negative correlation between the random effects
+
+## Trying to simplify the variance covariance matrix of the random effects
+
+fit2.nlme <- update(fit.nlme, random = pdBlocked(list(th1 + lrc ~ 1, th2 ~ 1)))
+```
+
+```{r}
+intervals(fit2.nlme, which = "var-cov")
+```
+
+```{r}
+anova(fit.nlme, fit2.nlme)
+```
+
+```{r, fig.width=3, fig.height=3}
+## The more general variance covariance matrix is better
+
+plot(augPred(fit.nlme, level = 0:1),
+  lwd = c(2, 1), col = c("black", "blue"),
+  ylab = list("Yield (g/m2)", cex = 1.5),
+  xlab = list("N fertilizer (g/m2)", cex = 1.5),
+  key = list(
+    text = list(c("fixed", "BLUP")), lines = TRUE, pch = 21, lty = 1,
+    lwd = c(2, 1), col = c("black", "blue")
+  )
+)
+```
+
+```{r}
+# growth rate in a better scale
+intervals(fit.nlme, which = "fixed")
+```
+
+```{r}
+lrc <- c(-1.890842, -1.66514, -1.439437)
+log(2) / exp(lrc)
+```
