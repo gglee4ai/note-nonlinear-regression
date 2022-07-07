@@ -91,38 +91,38 @@ Fitting one function for each year
 
 ```{r}
 fit.lis <- nlsList(yield ~ SSasymp(NF, th1, th2, lrc), data = byieldG)
+fit.lis
 ```
 
 ```{r}
-plot(intervals(fit.lis), layout = c(3, 1), lcol = "black", par.strip.text = list(cex = 2), col = "black")
+plot(
+  intervals(fit.lis),
+  layout = c(3, 1),
+  lcol = "black",
+  par.strip.text = list(cex = 2),
+  col = "black"
+)
 ```
 
-```{r}
-## This first graph suggest that we do need random effects for theta 1 and theta 2
-## but the random effect for lrc might not be needed
+This first graph suggest that we do need random effects for theta 1 and theta 2 but the random effect for lrc might not be needed
 
+```{r}
 plot(fit.lis, year ~ resid(.), abline = 0)
 ```
 
-```{r}
-## This plot shows a much better spread for the residuals than the single non-linear
-## equation fitted to all of the data. This is naturally expected.
-```
+This plot shows a much better spread for the residuals than the single non-linear equation fitted to all of the data. This is naturally expected.
 
 ```{r}
 plot(fit.lis, id = 0.25, adj = -1)
 ```
 
+The standardized residuals allows us to see the outliers for individual years. Notice that they are within 2.
+
+The problem with this approach is that we are using (19 x 3 = 57) 57 parameters to model these data and we are not taking advantage of the similarity among curves additionally we don't have an estimate of how much these parameters vary among years.
+
+Finally fitting a non-linear mixed model.
+
 ```{r}
-## The standardized residuals allows us to see the outliers for individual years
-## Notice that they are within 2
-
-## The problem with this approach is that we are using (19 x 3 = 57) 57 parameters
-## to model these data and we are not taking advantage of the similarity among curves
-## additionally we don't have an estimate of how much these parameters vary among years
-
-## Finally fitting a non-linear mixed model
-
 fit.nlme <- nlme(fit.lis)
 fit.nlme
 ```
@@ -131,9 +131,9 @@ fit.nlme
 intervals(fit.nlme)
 ```
 
-```{r}
-## Comparing these estimates to the simple non-linear function
+Comparing these estimates to the simple non-linear function
 
+```{r}
 ## Simple
 coef(fit.nls)
 ```
@@ -145,31 +145,27 @@ fit.nlme$coefficients$fixed
 
 ```{r}
 ## Model checking
-
 plot(fit.nlme, id = 0.2)
 ```
 
+These residuals look even better than the ones from the individual fits
+
 ```{r}
-## These residuals look even better than the ones from the individual fits
 qqnorm(fit.nlme)
 ```
 
+Normality is not a problem here
+
 ```{r}
-## Normality is not a problem here
 plot(ranef(fit.nlme, augFrame = T), layout = c(3, 1))
 ```
 
-```{r}
-## This is an interesting plot because it shows the variability in the random effects
-## by year. It would be interesting to add a plot where the years are sorted to detect
-## a possible trend.
+This is an interesting plot because it shows the variability in the random effects by year. It would be interesting to add a plot where the years are sorted to detect a possible trend.
 
+```{r}
 ranef.fnlme <- ranef(fit.nlme, augFrame = TRUE)
 dd <- data.frame(ind = 1:19, rn = row.names(ranef.fnlme))
 dd.o <- dd[order(dd$rn), ]$ind
-```
-
-```{r}
 ranef.fnlme2 <- ranef.fnlme[dd.o, ]
 
 plot(ranef.fnlme2, layout = c(3, 1))
@@ -187,23 +183,35 @@ xyplot(ranef.fnlme2$th2 ~ 1970:1988,
 qqnorm(fit.nlme, ~ ranef(.), col = "black")
 ```
 
-```{r}
-## Normality of the random effects for each parameter
+Normality of the random effects for each parameter
 
+```{r}
 pairs(fit.nlme, pch = 19, col = "black")
 ```
 
+Visual assesment of the correlation for the random effects
+
 ```{r}
-## Visual assesment of the correlation for the random effects
 intervals(fit.nlme, which = "var-cov")
 ```
 
+Need to add an interpretation of the negative correlation between the random effects.
+
+Trying to simplify the variance covariance matrix of the random effects.
+
 ```{r}
-## Need to add an interpretation of the negative correlation between the random effects
-
-## Trying to simplify the variance covariance matrix of the random effects
-
 fit2.nlme <- update(fit.nlme, random = pdBlocked(list(th1 + lrc ~ 1, th2 ~ 1)))
+fit2.nlme
+```
+
+```{r}
+fit3.nlme <- update(fit.nlme, random = pdBlocked(list(th1 ~ 1, lrc ~ 1, th2 ~ 1)))
+fit3.nlme
+```
+
+```{r}
+fit4.nlme <- update(fit.nlme, random = pdDiag(list(th1 ~ 1, lrc ~ 1, th2 ~ 1)))
+fit4.nlme
 ```
 
 ```{r}
@@ -211,13 +219,43 @@ intervals(fit2.nlme, which = "var-cov")
 ```
 
 ```{r}
-anova(fit.nlme, fit2.nlme)
+anova(fit.nlme, fit2.nlme, fit3.nlme, fit4.nlme)
 ```
 
-```{r, fig.width=3, fig.height=3}
-## The more general variance covariance matrix is better
+The more general variance covariance matrix is better
 
+```{r, fig.width=3, fig.height=3}
 plot(augPred(fit.nlme, level = 0:1),
+  lwd = c(2, 1), col = c("black", "blue"),
+  ylab = list("Yield (g/m2)", cex = 1.5),
+  xlab = list("N fertilizer (g/m2)", cex = 1.5),
+  key = list(
+    text = list(c("fixed", "BLUP")), lines = TRUE, pch = 21, lty = 1,
+    lwd = c(2, 1), col = c("black", "blue")
+  )
+)
+
+plot(augPred(fit2.nlme, level = 0:1),
+  lwd = c(2, 1), col = c("black", "blue"),
+  ylab = list("Yield (g/m2)", cex = 1.5),
+  xlab = list("N fertilizer (g/m2)", cex = 1.5),
+  key = list(
+    text = list(c("fixed", "BLUP")), lines = TRUE, pch = 21, lty = 1,
+    lwd = c(2, 1), col = c("black", "blue")
+  )
+)
+
+plot(augPred(fit3.nlme, level = 0:1),
+  lwd = c(2, 1), col = c("black", "blue"),
+  ylab = list("Yield (g/m2)", cex = 1.5),
+  xlab = list("N fertilizer (g/m2)", cex = 1.5),
+  key = list(
+    text = list(c("fixed", "BLUP")), lines = TRUE, pch = 21, lty = 1,
+    lwd = c(2, 1), col = c("black", "blue")
+  )
+)
+
+plot(augPred(fit4.nlme, level = 0:1),
   lwd = c(2, 1), col = c("black", "blue"),
   ylab = list("Yield (g/m2)", cex = 1.5),
   xlab = list("N fertilizer (g/m2)", cex = 1.5),
