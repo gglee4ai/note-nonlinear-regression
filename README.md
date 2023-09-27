@@ -1,4 +1,4 @@
-# study-nonlinear-regression-2022
+# note-nonlinear-regression-2022
 
 R에서 비선형회귀 및 비선형 혼합모델 패키지 관련되어 공부한 내용들입니다.
 
